@@ -9,7 +9,7 @@ from googleapiclient.errors import HttpError
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-def build_unread_messages_dict(service):
+def build_unread_messages_list(service):
 
     unread_messages = []
 
@@ -57,7 +57,7 @@ def build_unread_messages_dict(service):
     return unread_messages
 
 
-def main():
+def retrieve_message_list():
 
     creds = None
     # The file token.json stores the user's access and refresh tokens, and is
@@ -97,9 +97,8 @@ def main():
         # TODO(developer) - Handle errors from gmail API.
         print(f"An error occurred: {error}")
 
-    unread_messages = build_unread_messages_dict(service)
+    unread_messages = build_unread_messages_list(service)
     #print('Unread Message 192 : ', unread_messages[192])
-    print('Unread Messages = ',len(unread_messages))
+    #print('Unread Messages = ',len(unread_messages))
 
-if __name__ == "__main__":
-    main()
+    return unread_messages
