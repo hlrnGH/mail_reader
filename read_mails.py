@@ -16,7 +16,7 @@ def build_unread_messages_dict(service):
     next_page_token = None
 
     while True:
-        # Récupération d'une page de messages non lus
+        # Retrieve messages
         result = service.users().messages().list(
             userId="me",
             #q="is:unread",
@@ -33,7 +33,7 @@ def build_unread_messages_dict(service):
                 format="full"
             ).execute()
 
-            # Objet (Subject)
+            # Object 
             headers = msg_detail.get("payload", {}).get("headers", [])
             subject = ""
             for h in headers:
@@ -41,7 +41,7 @@ def build_unread_messages_dict(service):
                     subject = h.get("value", "")
                     break
 
-            # Contenu "résumé" → synthèse
+            # Synthesis
             synthese = msg_detail.get("snippet", "")
 
             unread_messages.append({
