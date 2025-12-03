@@ -1,3 +1,10 @@
+#google libraries
 google-api-python-client 
 google-auth-httplib2 
 google-auth-oauthlib
+
+#ml libraries
+groq
+
+#other libraries
+python-dotenv
