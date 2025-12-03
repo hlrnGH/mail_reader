@@ -74,7 +74,7 @@ def retrieve_message_list():
             "credentials.json", SCOPES
         )
             creds = flow.run_local_server(port=0)
-            
+
         # Save the credentials for the next run
         with open("token.json", "w") as token:
             token.write(creds.to_json())
@@ -103,8 +103,3 @@ def retrieve_message_list():
     #print('Unread Messages = ',len(unread_messages))
 
     return unread_messages
-
-
-message_list = retrieve_message_list()
-
-print("Total unread messages :", len(message_list))
