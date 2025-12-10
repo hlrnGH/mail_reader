@@ -1,19 +1,23 @@
-import os.path
+import os
+import base64
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 
+from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# If modifying these scopes, delete the file token.json.
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+load_dotenv()
 
-from email.utils import parsedate_to_datetime
-from datetime import datetime
+# SCOPES communs Gmail + Drive (read/write Gmail + créer fichiers/dossiers Drive)
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/drive.file",
+]
 
-import base64
-from email.utils import parsedate_to_datetime
 
 def extract_plain_text(payload):
     """
@@ -61,18 +65,72 @@ def extract_plain_text(payload):
                 texts.append(html)
             except Exception:
                 continue
+        
+    plain_text = "\n".join(texts).strip()
 
-    return "\n".join(texts).strip()
+    return plain_text
 
 
-def build_unread_messages_list(service):
+# ---------- 1) Gestion des credentials ----------
 
-    unread_messages = []
+def get_creds():
+    """
+    Récupère des credentials valides en utilisant token.json / credentials.json
+    avec les SCOPES définis plus haut.
+    """
+    creds = None
+
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                "credentials.json", SCOPES
+            )
+            creds = flow.run_local_server(port=0)
+
+        # Sauvegarde pour les prochains runs
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+
+    return creds
+
+
+# ---------- 2) Services Gmail / Drive ----------
+
+def get_gmail_service():
+    """
+    Retourne un service Gmail prêt à l'emploi.
+    """
+    creds = get_creds()
+
+    gmail_service = build("gmail", "v1", credentials=creds)
+
+    return gmail_service
+
+
+def get_drive_service():
+    """
+    Retourne un service Drive prêt à l'emploi (avec les mêmes creds).
+    """
+    creds = get_creds()
+
+    drive_service = build("drive", "v3", credentials=creds)
+
+    return drive_service
+
+
+# ---------- 3) Construction de la liste de messages ----------
+
+def build_messages_list(gmail_service):
+    messages_list = []
     next_page_token = None
 
     while True:
-        # Retrieve messages
-        result = service.users().messages().list(
+        result = gmail_service.users().messages().list(
             userId="me",
             # q="is:unread",
             pageToken=next_page_token
@@ -82,13 +140,13 @@ def build_unread_messages_list(service):
 
         for msg in messages:
             msg_id = msg["id"]
-            msg_detail = service.users().messages().get(
+            msg_detail = gmail_service.users().messages().get(
                 userId="me",
                 id=msg_id,
                 format="full"
             ).execute()
 
-            payload = msg_detail.get("payload", {})  # pour le corps complet
+            payload = msg_detail.get("payload", {})
             headers = payload.get("headers", [])
 
             subject = ""
@@ -105,24 +163,20 @@ def build_unread_messages_list(service):
                 elif name == "Date":
                     date_header = value
 
-            # Snippet = petite synthèse fournie par Gmail
             synthese = msg_detail.get("snippet", "") or ""
-
-            # Corps complet
             texte_complet = extract_plain_text(payload)
             if not texte_complet:
-                texte_complet = synthese  # fallback minimal
+                texte_complet = synthese
 
-            # Normaliser la date au format "YYYY-MM-DD HH:MM:SS"
             date_norm = None
             if date_header:
                 try:
                     dt = parsedate_to_datetime(date_header)
                     date_norm = dt.strftime("%Y-%m-%d %H:%M:%S")
                 except Exception:
-                    date_norm = date_header  # au pire on garde brut
+                    date_norm = date_header
 
-            unread_messages.append({
+            messages_list.append({
                 "id": msg_id,
                 "sujet": subject or "",
                 "from": from_header or "",
@@ -136,52 +190,21 @@ def build_unread_messages_list(service):
         if not next_page_token:
             break
 
-    return unread_messages
+    return messages_list
 
 
 def retrieve_message_list():
-
-    creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-            "credentials.json", SCOPES
-        )
-            creds = flow.run_local_server(port=0)
-
-        # Save the credentials for the next run
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
-
+    """
+    Fonction utilitaire "ancienne interface" :
+    construit elle-même le service Gmail,
+    puis retourne la liste de messages.
+    """
     try:
-        # Call the Gmail API
-        service = build("gmail", "v1", credentials=creds)
-        results = service.users().labels().list(userId="me").execute()
-        labels = results.get("labels", [])
-
-        if not labels:
-            print("No labels found.")
-            return
-        """
-        print("Labels:")
-        for label in labels:
-            print(label["name"])
-        """
-
+        gmail_service = get_gmail_service()
+        # Optionnel : juste pour vérifier que l'API répond
+        _ = gmail_service.users().labels().list(userId="me").execute()
     except HttpError as error:
-        # TODO(developer) - Handle errors from gmail API.
         print(f"An error occurred: {error}")
+        return []
 
-    unread_messages = build_unread_messages_list(service)
-    #print('Unread Message 192 : ', unread_messages[192])
-    #print('Unread Messages = ',len(unread_messages))
-
-    return unread_messages
+    return build_messages_list(gmail_service)
