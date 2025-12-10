@@ -16,6 +16,7 @@ load_dotenv()
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/gmail.send"
 ]
 
 
@@ -132,7 +133,7 @@ def build_messages_list(gmail_service):
     while True:
         result = gmail_service.users().messages().list(
             userId="me",
-            # q="is:unread",
+            q="is:unread",
             pageToken=next_page_token
         ).execute()
 
