@@ -6,9 +6,32 @@ from dotenv import load_dotenv
 load_dotenv()
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-# Function that add a record to airtable
-# It takes in a parameter a list of json objects
-# here are the fields of each json object: 
+
+
+def check_duplicates(record, airtable_table_id, airtable_base_id, airtable_api_key):
+    url = f"https://api.airtable.com/v0/{airtable_base_id}/{airtable_table_id}"
+    headers = {"Authorization": f"Bearer {airtable_api_key}"}
+
+    email = record.get("Email")
+    tel = record.get("Téléphone")
+    nom = record.get("Nom")
+    prenom = record.get("Prénom")
+    ville = record.get("Ville")
+
+    if email:
+        formula = f"{{Email}} = '{email}'"
+    elif tel:
+        formula = f"{{Téléphone}} = '{tel}'"
+    else:
+        formula = f"AND({{Nom}} = '{nom}', {{Prénom}} = '{prenom}', {{Ville}} = '{ville}')"
+
+    response = requests.get(url, headers=headers, params={"filterByFormula": formula})
+    data = response.json()
+
+    return len(data.get("records", [])) > 0
+
+
+
 
 def add_record_to_airtable(data, airtable_table_id, airtable_base_id,airtable_api_key):
     url= f"https://api.airtable.com/v0/{airtable_base_id}/{airtable_table_id}"
@@ -20,6 +43,10 @@ def add_record_to_airtable(data, airtable_table_id, airtable_base_id,airtable_ap
     }   
 
     for record in data:
+        # Check for duplicates
+        if check_duplicates(record, airtable_table_id, airtable_base_id, airtable_api_key):
+            print("Duplicate record found. Skipping:", record)
+            continue
         airtable_payload = {
             "records": [
                 {
