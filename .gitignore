@@ -11,5 +11,3 @@ venv/
 #test
 
 test.py
-
-create_appointment.py
