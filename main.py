@@ -22,8 +22,6 @@ drive_service = get_drive_service()
 built_message_list = retrieve_message_list()
 classified_messages = classify_crm_fields(built_message_list, system_prompt)
 
-#send_acks_to_each(gmail_service, classified_messages)
-
 #print("messages list : ", classified_messages)
 
 attach_drive_folders_to_messages(drive_service, classified_messages, drive_id)
@@ -32,4 +30,5 @@ attach_drive_folders_to_messages(drive_service, classified_messages, drive_id)
 
 add_record_to_airtable(classified_messages, airtable_table_id, airtable_base_id, airtable_api_key)
 
+send_acks_to_each(gmail_service, classified_messages)
 mark_as_read(gmail_service, build_messages_list(gmail_service))
