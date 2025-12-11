@@ -18,20 +18,29 @@ DRIVE_ID = os.getenv("GOOGLE_DRIVE_ID")  # dossier racine clients
 # initialize system prompt
 system_prompt = open("system_prompt_classifier.txt", "r", encoding="utf-8").read()
 
-def create_client_drive(drive_service, prenom, nom, parent_id):
+def create_client_drive(drive_service, prenom, nom, email, parent_id):
     """
     Crée (ou récupère) un dossier Drive pour un contact.
-    Nom du dossier : 'Nom Prénom'.
+    Nom du dossier :
+        - 'Nom Prénom - email' si nom/prénom/email dispo
+        - 'Nom Prénom' si pas d'email
+        - 'email' si pas de nom/prénom
     Si le dossier existe déjà dans parent_id, renvoie son id.
     Sinon, le crée et renvoie son id.
     """
     prenom = (prenom or "").strip()
     nom = (nom or "").strip()
+    email = (email or "").strip()
 
-    if not prenom and not nom:
-        return None  # pas de nom/prénom -> pas de dossier
+    if not prenom and not nom and not email:
+        return None  # aucune info -> on ne crée rien
 
-    folder_name = f"{nom} {prenom}".strip()  # ex : "Lefèvre Romain"
+    if nom and prenom and email:
+        folder_name = f"{nom} {prenom} - {email}"
+    elif nom or prenom:
+        folder_name = f"{nom} {prenom}".strip()
+    else:
+        folder_name = email  # pas de nom/prénom mais email dispo
 
     # Recherche d'un dossier existant
     query = (
@@ -76,16 +85,22 @@ def create_client_drive(drive_service, prenom, nom, parent_id):
         return None
 
 
+
 def attach_drive_folders_to_messages(drive_service, classified_messages, drive_id):
+    """
+    Pour chaque message classifié, crée/récupère un dossier client
+    et ajoute 'drive_folder_id' dans le dict.
+    """
     for msg in classified_messages:
-        # suivant ton schéma : "Prénom"/"Nom" (issus du LLM)
         prenom = msg.get("Prénom") or msg.get("prenom")
         nom = msg.get("Nom") or msg.get("nom")
+        email = msg.get("Email") or msg.get("email")
 
-        folder_id = create_client_drive(drive_service, prenom, nom, drive_id)
+        folder_id = create_client_drive(drive_service, prenom, nom, email, drive_id)
         msg["drive_folder_id"] = folder_id
 
     return classified_messages
+
 
 
 built_message_list = retrieve_message_list()
