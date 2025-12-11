@@ -1,8 +1,9 @@
 from classifier import classify_crm_fields
-from read_mails import retrieve_message_list, get_drive_service, get_gmail_service
+from read_mails import retrieve_message_list, mark_as_read, build_messages_list
 from create_client_drive import attach_drive_folders_to_messages
 from send_to_airtable import add_record_to_airtable
 from send_acknwoledgment_mail import send_acks_to_each
+from services import get_gmail_service, get_drive_service
 
 import os
 from dotenv import load_dotenv
@@ -31,4 +32,4 @@ attach_drive_folders_to_messages(drive_service, classified_messages, drive_id)
 
 add_record_to_airtable(classified_messages, airtable_table_id, airtable_base_id, airtable_api_key)
 
-
+mark_as_read(gmail_service, build_messages_list(gmail_service))

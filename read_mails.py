@@ -1,23 +1,13 @@
 import os
 import base64
-from datetime import datetime
 from email.utils import parsedate_to_datetime
 
 from dotenv import load_dotenv
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-load_dotenv()
+from services import get_gmail_service
 
-# SCOPES communs Gmail + Drive (read/write Gmail + créer fichiers/dossiers Drive)
-SCOPES = [
-    "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/gmail.send"
-]
+load_dotenv()
 
 
 def extract_plain_text(payload):
@@ -71,60 +61,18 @@ def extract_plain_text(payload):
 
     return plain_text
 
+def mark_as_read(gmail_service, messages_list):
+    ids = [m["id"] for m in messages_list]
+    if not ids:
+        return
+    gmail_service.users().messages().batchModify(
+        userId="me",
+        body={
+            "ids": ids,
+            "removeLabelIds": ["UNREAD"]
+        }
+    ).execute()
 
-# ---------- 1) Gestion des credentials ----------
-
-def get_creds():
-    """
-    Récupère des credentials valides en utilisant token.json / credentials.json
-    avec les SCOPES définis plus haut.
-    """
-    creds = None
-
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                "credentials.json", SCOPES
-            )
-            creds = flow.run_local_server(port=0)
-
-        # Sauvegarde pour les prochains runs
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
-
-    return creds
-
-
-# ---------- 2) Services Gmail / Drive ----------
-
-def get_gmail_service():
-    """
-    Retourne un service Gmail prêt à l'emploi.
-    """
-    creds = get_creds()
-
-    gmail_service = build("gmail", "v1", credentials=creds)
-
-    return gmail_service
-
-
-def get_drive_service():
-    """
-    Retourne un service Drive prêt à l'emploi (avec les mêmes creds).
-    """
-    creds = get_creds()
-
-    drive_service = build("drive", "v3", credentials=creds)
-
-    return drive_service
-
-
-# ---------- 3) Construction de la liste de messages ----------
 
 def build_messages_list(gmail_service):
     messages_list = []
@@ -207,5 +155,5 @@ def retrieve_message_list():
     except HttpError as error:
         print(f"An error occurred: {error}")
         return []
-
+    
     return build_messages_list(gmail_service)
